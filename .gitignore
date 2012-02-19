@@ -1,0 +1,5 @@
+.*.swp
+.*.swo
+*.pyc
+showdatabase.sqlite
+
