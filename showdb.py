@@ -6,25 +6,26 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
-import startdownload 
+import startdownload
 import gzip
 import os
 import re
 import sqlite3
-import subprocess 
+import subprocess
 import sys
 import time
 import config
+import logging
 from StringIO import StringIO
 from pprint import pprint
 
@@ -96,7 +97,7 @@ def loadlist(filename):
 
 #return a function to check if a show is subscribed
 def mkshowfilter():
-  filters = map(lambda x: re.compile(x, re.IGNORECASE), loadlist(filters_file))
+  filters = map(lambda x: re.compile(x+'$', re.IGNORECASE), loadlist(filters_file))
   return lambda name: any(map(lambda r: r.match(name) is not None, filters))
 
 #check disk for a show
@@ -178,10 +179,10 @@ def createTables():
         checked    INTEGER DEFAULT 0,
         UNIQUE(name,episode,url)
       );
-      
+
       CREATE INDEX IF NOT EXISTS idx_shows_checked
       ON shows(checked);
-  
+
       -- aliases use the following triggers to auto-rename shows
       CREATE TABLE IF NOT EXISTS aliases (
         oldname TEXT COLLATE NOCASE UNIQUE,
@@ -191,31 +192,31 @@ def createTables():
 
       -- apply new aliases to existing shows on creation
       CREATE TRIGGER IF NOT EXISTS trg_alias_created
-        AFTER INSERT ON aliases 
-        BEGIN 
-          UPDATE OR REPLACE shows SET name=NEW.newname WHERE name=NEW.oldname; 
+        AFTER INSERT ON aliases
+        BEGIN
+          UPDATE OR REPLACE shows SET name=NEW.newname WHERE name=NEW.oldname;
         END;
       CREATE TRIGGER IF NOT EXISTS trg_alias_updated
-        AFTER UPDATE ON aliases 
-        BEGIN 
-          UPDATE OR REPLACE shows SET name=NEW.newname WHERE name=NEW.oldname; 
+        AFTER UPDATE ON aliases
+        BEGIN
+          UPDATE OR REPLACE shows SET name=NEW.newname WHERE name=NEW.oldname;
         END;
-      
+
       -- apply existing aliases to new shows as they are added
       CREATE TRIGGER IF NOT EXISTS trg_alias_apply_insert
-        AFTER INSERT ON shows 
+        AFTER INSERT ON shows
         WHEN NEW.name IN (SELECT oldname FROM aliases)
-        BEGIN 
+        BEGIN
           UPDATE shows SET name = (SELECT newname FROM aliases WHERE oldname=NEW.name) WHERE rowid=NEW.rowid;
         END;
       CREATE TRIGGER IF NOT EXISTS trg_alias_apply_update
         AFTER UPDATE OF name ON shows
         WHEN NEW.name IN (SELECT oldname FROM aliases)
-        BEGIN 
+        BEGIN
           UPDATE shows SET name = (SELECT newname FROM aliases WHERE oldname=NEW.name) WHERE rowid=NEW.rowid;
         END;
-      
-      
+
+
       -- list of failed parses
       CREATE TABLE IF NOT EXISTS unparsed (
         src        TEXT COLLATE NOCASE,
@@ -264,6 +265,21 @@ def parseFailed(pfx, src, url, msg=""):
   else:
     return False
 
+def findExistingTorrent(name, episode, torrent):
+  '''
+  its possible the file inside the torrent says a different episode than the
+  torrent name, check for this case
+  '''
+  files = torrent.files()
+  if len(files) == 1:
+    try:
+      _name,_episode = splitShowEp(files[0])
+      if _name.lower()==name.lower() and _episode and _episode.lower()!=episode.lower():
+        return findExistingEpisode(_name, _episode)
+    except:
+      pass
+  return False
+
 def downloadShow(name, episode, t=int(time.time())):
   db=opendb()
   r=db.execute("SELECT count(*) FROM shows WHERE name=? AND episode=? AND downloaded>0", (name,episode))
@@ -279,16 +295,21 @@ def downloadShow(name, episode, t=int(time.time())):
     db.close()
     return True
 
-  r=db.execute('''SELECT id,url 
-                  FROM shows WHERE name=? AND episode=?
-                  ORDER BY src LIKE '%hdtv%' DESC
-               ''', (name,episode))
+  r=db.execute("SELECT id,url FROM shows WHERE name=? AND episode=?",
+               (name, episode))
   best=None
   for sid,url in r:
     try:
       torrent = TorrentInfo(url)
-      torrent.sid=sid
-      torrent.score=scoreTorrent(name,episode,torrent)
+      torrent.sid = sid
+      torrent.score = scoreTorrent(name, episode, torrent)
+
+      is_existing2 = findExistingTorrent(name, episode, torrent)
+      if is_existing2:
+        print "DB: skipping download (existing, alternate):", name, episode
+        db.close()
+        return True
+
       if best is None or best.score>torrent.score:
         best=torrent
         if best.score==0:
@@ -306,6 +327,7 @@ def downloadShow(name, episode, t=int(time.time())):
     print "DB: downloaded:", name, episode, "(score=%d)"%torrent.score
     return True
   else:
+    time.sleep(10)
     return False
 
 def markChecked(name, episode, t):
