@@ -14,12 +14,12 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import sys,os,traceback
+import sys, os, traceback
 from base64 import b64encode
 
 import transmissionrpc
 
-tc=transmissionrpc.Client()
+tc = transmissionrpc.Client()
 
 # from deluge.ui.client import sclient as client
 # from deluge.ui.common import get_localhost_auth_uri
@@ -33,20 +33,23 @@ tc=transmissionrpc.Client()
 
 def downloadTorrent(path, filename, filedump):
   try:
-    tc.add(b64encode(filedump), download_dir=os.path.abspath(os.path.expanduser(path)))
+    tc.add(b64encode(filedump),
+           download_dir=os.path.abspath(os.path.expanduser(path)))
     return True
   except transmissionrpc.TransmissionError:
-    print "ERROR: Download of",filename,"failed"
+    print "ERROR: Download of", filename, "failed"
     traceback.print_exc()
     return False
+
 
 def downloadTorrentFile(path, torrentfile):
   filename = os.path.split(torrentfile)[-1]
   filedump = open(torrentfile).read()
   return downloadTorrent(path, filename, filedump)
 
+
 if __name__ == "__main__":
-  assert len(sys.argv)==3
+  assert len(sys.argv) == 3
   if downloadTorrentFile(sys.argv[1], sys.argv[2]):
     print "OK"
     sys.exit(0)
