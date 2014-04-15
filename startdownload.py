@@ -35,7 +35,7 @@ def downloadTorrent(path, filename, filedump):
   try:
     tc.add(b64encode(filedump), download_dir=os.path.abspath(os.path.expanduser(path)))
     return True
-  except transmissionrpc.TransmissionError:
+  except:
     print "ERROR: Download of",filename,"failed"
     traceback.print_exc()
     return False
