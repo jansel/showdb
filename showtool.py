@@ -18,11 +18,10 @@
 import showdb
 import sys
 import time
-import sqlite3
 
 try:
-  cmd=sys.argv[1]
-  args=sys.argv[2:]
+  cmd = sys.argv[1]
+  args = sys.argv[2:]
   if "help" in cmd:
     raise Exception()
 except:
@@ -53,113 +52,116 @@ showtool query <sql-query>
    -- execute a raw query on the database
 '''
   sys.exit(1)
-  
-searchname=' '.join(args)+'%'
-searchep="%"
+
+searchname = ' '.join(args) + '%'
+searchep = "%"
 try:
-  searchname,searchep=showdb.splitShowEp(' '.join(args))
+  searchname, searchep = showdb.splitShowEp(' '.join(args))
 except:
   pass
-  
+
 isfilteredshow = showdb.mkshowfilter()
-mapmap=lambda fn, ll: map(lambda l: map(fn, l), ll)
-db=showdb.opendb()
-rv=db.cursor()
-rows=[]
+mapmap = lambda fn, ll: map(lambda l: map(fn, l), ll)
+db = showdb.opendb()
+rv = db.cursor()
+rows = []
 
 if cmd in ["list", "ls", "search", "find"]:
-  print "Searching for name like",searchname,"episode like",searchep
-  rv=db.execute('''
+  print "Searching for name like", searchname, "episode like", searchep
+  rv = db.execute('''
                    SELECT name,max(episode) as "last ep", count(distinct episode) as "eps",sum(downloaded>0) as dls,date(max(created),'unixepoch') as updated, '' as sub
                    FROM shows 
                    WHERE name LIKE ? AND episode LIKE ? 
                    GROUP BY name ORDER BY name
-                ''', (searchname,searchep))
-  rows=rv.fetchall()
-  if len(rows)==1:
-    rv=db.execute('''
+                ''', (searchname, searchep))
+  rows = rv.fetchall()
+  if len(rows) == 1:
+    rv = db.execute('''
                      SELECT name, episode, sum(downloaded>0) as "dls", count(*) as "vers", '' as sub
                      FROM shows 
                      WHERE name LIKE ? AND episode LIKE ? 
                      GROUP BY name,episode ORDER BY name,episode
-                  ''', (searchname,searchep))
-    rows=rv.fetchall()
+                  ''', (searchname, searchep))
+    rows = rv.fetchall()
   for i in xrange(len(rows)):
     if isfilteredshow(rows[i][0]):
-      rows[i]=list(rows[i])
-      rows[i][-1]='Y'
+      rows[i] = list(rows[i])
+      rows[i][-1] = 'Y'
 
 elif cmd in ["latest"]:
-  rv=db.execute('''
+  rv = db.execute('''
                    SELECT name,episode as "episode", sum(downloaded>0) as "dls", count(*) as "vers", date(max(created),'unixepoch') as "updated"
                    FROM shows 
                    WHERE created > ?
                    GROUP BY name,episode ORDER BY max(created) DESC
-                ''', [int(time.time())-3600*24])
+                ''', [int(time.time()) - 3600 * 24])
 
 elif cmd in ["download"]:
-  assert len(args)>0
-  rv=db.execute('''
+  assert len(args) > 0
+  rv = db.execute('''
                    SELECT DISTINCT name,episode
                    FROM shows 
                    WHERE name LIKE ? AND episode LIKE ? 
-                ''', (searchname,searchep))
-  rows=rv.fetchall()
-  for name,ep in rows:
-    showdb.downloadShow(name,ep)
+                ''', (searchname, searchep))
+  rows = rv.fetchall()
+  for name, ep in rows:
+    showdb.downloadShow(name, ep)
 
 elif cmd in ["fetch"]:
   import rssshowfeed
-  if len(args)==0:
+
+  if len(args) == 0:
     rssshowfeed.updateShowDb()
   else:
     rssshowfeed.updateShowDb(args)
   showdb.checkNew()
 
 elif cmd in ["check"]:
-  assert len(args)==0
+  assert len(args) == 0
   showdb.checkNew()
 
 elif cmd in ["cleanup"]:
-  assert len(args)==0
-  rv=db.execute("vacuum")
-  rv=db.execute("analyze")
+  assert len(args) == 0
+  rv = db.execute("vacuum")
+  rv = db.execute("analyze")
   db.commit()
 
 elif cmd in ["alias"]:
-  assert len(args)==2
-  rv=db.execute("INSERT INTO aliases(oldname, newname) VALUES(?,?)", args)
+  assert len(args) == 2
+  rv = db.execute("INSERT INTO aliases(oldname, newname) VALUES(?,?)", args)
   db.commit()
 
 elif cmd in ["query"]:
-  rv=db.execute(' '.join(args))
+  rv = db.execute(' '.join(args))
 
 else:
   print "unknown command, for help run with --help"
   sys.exit(1)
 
-if len(rows)==0:
-  rows=rv.fetchall()
+if len(rows) == 0:
+  rows = rv.fetchall()
 
-if len(rows)>0:
-  rows=mapmap(str,rows)
-  keys=map(lambda x: x[0], rv.description)
-  lens=map(len, keys)
+if len(rows) > 0:
+  rows = mapmap(str, rows)
+  keys = map(lambda x: x[0], rv.description)
+  lens = map(len, keys)
+
   def printrow(row):
-    for e,l in zip(row, lens):
+    for e, l in zip(row, lens):
       print '|',
       print e.ljust(l),
     print '|'
+
   #get max width of each col
   for row in rows:
     for i in xrange(len(keys)):
-      lens[i]=max(lens[i], len(row[i]))
+      lens[i] = max(lens[i], len(row[i]))
 
   printrow(map(lambda x: x.upper(), keys))
   for row in rows:
     printrow(row)
-  
-print "count =", max(rv.rowcount,len(rows))
+
+print "count =", max(rv.rowcount, len(rows))
 
 
 

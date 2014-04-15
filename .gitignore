@@ -2,4 +2,4 @@
 .*.swo
 *.pyc
 showdatabase.sqlite
-
+.idea

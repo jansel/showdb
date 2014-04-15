@@ -17,15 +17,14 @@
 
 import sys
 import re
-from pprint import pprint
 
-r1=re.compile("[0-9]+:")
-r2=re.compile("word_matches")
+r1 = re.compile("[0-9]+:")
+r2 = re.compile("word_matches")
 
-lines=r1.split(open(sys.argv[1]).read())
+lines = r1.split(open(sys.argv[1]).read())
 
-idxs=filter(lambda i: r2.match(lines[i]) is not None, xrange(len(lines)))
-idxs=map(lambda x: x+1, idxs)
+idxs = filter(lambda i: r2.match(lines[i]) is not None, xrange(len(lines)))
+idxs = map(lambda x: x + 1, idxs)
 
 for x in idxs:
   print lines[x][:-1]
