@@ -118,7 +118,7 @@ def findExistingEpisode(searchshow, searchep):
   searchshow = searchshow.lower()
   for name in os.listdir(download_dir):
     path = download_dir + "/" + name
-    if os.path.isfile(path) and ismatch(name):
+    if ismatch(name):
       return True
     if os.path.isdir(path) and name.lower() == searchshow:
       if any(map(ismatch, os.listdir(path))):
